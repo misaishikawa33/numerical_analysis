@@ -6,10 +6,10 @@ from matplotlib import pyplot as plt
 from matplotlib import cm
 
 #試行回数
-loop = 200
+loop = 100
 #初期パラメータ
-theta = np.deg2rad(10)
-s = 0.5
+theta = np.deg2rad(0)
+s = 1
 all_s = []
 all_theta = []
 all_error = []
@@ -29,8 +29,8 @@ gaussian_x = np.array(gaussian_x, dtype = float)
 gaussian_y = np.array(gaussian_y, dtype = float)
 
 #画像の読み込み
-img_in  = cv2.imread('../input/color/Lenna.bmp', cv2.IMREAD_GRAYSCALE)
-img_out = cv2.imread('../transformed_image.jpg', cv2.IMREAD_GRAYSCALE)
+img_in  = cv2.imread('wows.jpg', cv2.IMREAD_GRAYSCALE)
+img_out = cv2.imread('out_wows.jpg', cv2.IMREAD_GRAYSCALE)
 #画像の大きさ
 pixel = img_in.shape[0]
 

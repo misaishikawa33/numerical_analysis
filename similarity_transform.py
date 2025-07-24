@@ -24,8 +24,7 @@ import numpy as np
 import sys
 
 # 変換行列を計算
-def compute_M(scale, theta_deg, tx, ty):
-    theta_rad = np.deg2rad(theta_deg)
+def compute_M(scale, theta_rad, tx, ty):
     a = np.cos(theta_rad)
     b = np.sin(theta_rad)
     M = scale * np.array([
@@ -36,10 +35,9 @@ def compute_M(scale, theta_deg, tx, ty):
     return M
 
 # 画像を相似変換する(順変換、補完あり)
-def apply_similarity_transform_forward(img, scale, theta_deg):
+def apply_similarity_transform_forward(img, M):
     h, w = img.shape[:2]
     center = (w / 2, h / 2)
-    M = cv2.getRotationMatrix2D(center, angle=theta_deg, scale=scale)
     transformed = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_LINEAR)
     return transformed
 
@@ -75,12 +73,13 @@ def main():
     input_path = sys.argv[1]
     scale = float(sys.argv[2])
     theta_deg = float(sys.argv[3])
+    theta_rad = np.deg2rad(theta_deg)
     tx = float(sys.argv[4])
     ty = float(sys.argv[5])
     # 画像準備
     img = cv2.imread(input_path, cv2.IMREAD_COLOR)
     # 相似変換の適用
-    M = compute_M(scale, theta_deg, tx, ty)
+    M = compute_M(scale, theta_rad, tx, ty)
     result = apply_similarity_transform_reverse(img, M)
     # 円形に切り出し
     img_cropped = crop_img_into_circle(img)

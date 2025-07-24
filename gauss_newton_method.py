@@ -17,13 +17,17 @@ python gauss_newton_method.py input/color/Lenna.bmp transformed_image.jpg
 import sys
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import similarity_transform as st
+
 
 # x方向とy方向に平滑微分フィルタを適用する
 def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     # 平滑化
     img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
-    cv2.imshow("img_blurred", img_blurred)
-    cv2.waitKey(0)
+    # cv2.imshow("img_blurred", img_blurred)
+    # cv2.waitKey(0)
     # 微分
     # 単純な差分フィルタ
     kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
@@ -34,23 +38,36 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     # 表示用に変換
     dx_disp = cv2.convertScaleAbs(dx)
     dy_disp = cv2.convertScaleAbs(dy)
-    cv2.imshow("dx", dx_disp)
-    cv2.imshow("dy", dy_disp)
-    cv2.waitKey(0)
+    # cv2.imshow("dx", dx_disp)
+    # cv2.imshow("dy", dy_disp)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(I, I_prime, I_prime_dx, I_prime_dy):
+def estimate_by_gauss_newton_method(img_input, img_output):
     # 初期値設定
-    theta = np.deg2rad(45)
-    scale = 2
-    threshold = 1e-6
+    theta = np.deg2rad(20)
+    scale = 1
+
+    I_prime_org = img_input
+    I = img_output
+
+    threshold = 1e-4
     max_loop = 1000
 
+    theta_history = []
+    scale_history = []
+    
     H, W = I.shape[:2]
     y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
-    
+    x_coords = x_coords - (W - 1) / 2
+    y_coords = y_coords - (H - 1) / 2
+    # breakpoint()
     for i in range(max_loop):
+        M = st.compute_M(scale, theta, 0, 0)
+        I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
+        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=5, sigma=2)
         # JθとJθθの計算
         dxprime_dtheta = -scale * (x_coords * np.sin(theta) + y_coords * np.cos(theta))
         dyprime_dtheta = scale * (x_coords * np.cos(theta) - y_coords * np.sin(theta))
@@ -75,16 +92,55 @@ def estimate_by_gauss_newton_method(I, I_prime, I_prime_dx, I_prime_dy):
         nabla_u_J = np.array([J_theta, J_scale])
         H_u = np.array([[J_theta_theta, J_theta_scale],
                         [J_theta_scale, J_scale_scale]])
-        H_u_inv = np.linalg.inv(H_u)
-        delta_theta, delta_scale =  - H_u_inv @ nabla_u_J
-        # print(delta_theta, delta_scale)
+        # H_u_inv = np.linalg.inv(H_u)
+        # delta_theta, delta_scale =  - H_u_inv @ nabla_u_J
+        # print(H_u, nabla_u_J)
+        delta_theta, delta_scale = np.linalg.solve(H_u, nabla_u_J)
         if np.abs(delta_theta) < threshold and np.abs(delta_scale) < threshold:
             break
-        theta += delta_theta
-        scale += delta_scale
+        theta -= delta_theta
+        scale -= delta_scale
+        print(f"delta_theta;{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale}")
+        theta_history.append(np.rad2deg(theta))
+        scale_history.append(scale)
     print(f"反復回数：{i}")
-    # breakpoint()
-    return theta, scale
+    breakpoint()
+    return theta, scale, theta_history, scale_history
+
+# 目的関数を3次元空間にプロットする。極小値確認用。ただし、めっちゃ実行時間かかる
+def visualize_objective_function(img_input, img_output):
+    # パラメータ範囲
+    I_prime_org = img_input
+    I = img_output
+    theta_values = np.arange(0, 10, 1)      # 0 ～ 360度, 1度刻み
+    scale_values = np.arange(0.5, 1.6, 0.1)    # 0 ～ 3, 0.1刻み
+    # Jの結果格納用 (scale x theta の2次元配列)
+    J_values = np.zeros((len(scale_values), len(theta_values)))
+    # I と I_prime は事前に用意されているものとする
+    for i, scale in enumerate(scale_values):
+        for j, theta in enumerate(theta_values):
+            # 角度をラジアンに変換
+            theta_rad = np.deg2rad(theta)
+            # 相似変換を適用
+            M = st.compute_M(scale, theta_rad, 0, 0)
+            I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
+            # 目的関数Jを計算
+            J = 0.5 * np.sum((I_prime - I) ** 2)
+            J_values[i, j] = J
+    # すでに計算済みの J_values, theta_values, scale_values を使用
+    Theta, Scale = np.meshgrid(theta_values, scale_values)
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection='3d')
+    # 3Dサーフェスプロット
+    surf = ax.plot_surface(Theta, Scale, J_values, cmap='viridis', edgecolor='none')
+    # 軸ラベル
+    ax.set_xlabel('Theta (degrees)')
+    ax.set_ylabel('Scale')
+    ax.set_zlabel('Objective Function J')
+    ax.set_title('3D Plot of J(Theta, Scale)')
+    # カラーバー
+    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label='J')
+    plt.show()
 
 def main():
     # データ準備
@@ -95,15 +151,19 @@ def main():
     img_output_path = sys.argv[2]
     img_input = cv2.imread(img_input_path, cv2.IMREAD_GRAYSCALE)
     img_output = cv2.imread(img_output_path, cv2.IMREAD_GRAYSCALE)
-    cv2.imshow("input",img_input)
+    cv2.imshow("input", img_input)
     cv2.imshow("output", img_output)
     cv2.waitKey(0)
-    # 平滑微分フィルタを適用
-    img_output_dx, img_output_dy = apply_smoothing_differrential_filter(img_output, kernel_size=5, sigma=2)
+    cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta, scale = estimate_by_gauss_newton_method(img_input, img_output, img_output_dx, img_output_dy)
-    print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
+    theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
+    # 目的関数を可視化
+    # visualize_objective_function(img_input, img_output)
     # 可視化
-
+    print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
+    plt.plot(theta_history)
+    plt.plot(scale_history)
+    plt.grid(True)
+    plt.show()
 if __name__ == "__main__":
     main()
