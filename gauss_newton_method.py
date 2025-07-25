@@ -10,6 +10,7 @@
 ・スケールパラメータ
 実行：
 python gauss_newton_method.py input.jpg output.jpg
+
 【情報】
 作成者：勝田尚樹
 作成日：2025/7/23
@@ -44,16 +45,13 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(img_input, img_output, threshold=1e-5, max_loop=1000):
+def estimate_by_gauss_newton_method(img_input, img_output, theta_init=0, scale_init=1, threshold=1e-5, max_loop=1000):
     # 初期値設定
-    theta = np.deg2rad(20)
-    scale = 1.2
+    theta = np.deg2rad(theta_init)
+    scale = scale_init
 
     I_prime_org = img_input
     I = img_output
-
-    threshold = 1e-5
-    max_loop = 1000
 
     theta_history = []
     scale_history = []
@@ -100,11 +98,10 @@ def estimate_by_gauss_newton_method(img_input, img_output, threshold=1e-5, max_l
             break
         theta -= delta_theta
         scale -= delta_scale
-        print(f"delta_theta;{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale}")
         theta_history.append(np.rad2deg(theta))
         scale_history.append(scale)
+        print(f"delta_theta;{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale}")
     print(f"反復回数：{i}")
-    breakpoint()
     return theta, scale, theta_history, scale_history
 
 # 目的関数を3次元空間にプロットする。極小値確認用。ただし、めっちゃ実行時間かかる
@@ -112,8 +109,8 @@ def visualize_objective_function(img_input, img_output):
     # パラメータ範囲
     I_prime_org = img_input
     I = img_output
-    theta_values = np.arange(0, 30, 1)      # 0 ～ 360度, 1度刻み
-    scale_values = np.arange(0.5, 1.6, 0.1)    # 0 ～ 3, 0.1刻み
+    theta_values = np.arange(0, 30, 1)  
+    scale_values = np.arange(0.5, 1.6, 0.1)    
     # Jの結果格納用 (scale x theta の2次元配列)
     J_values = np.zeros((len(scale_values), len(theta_values)))
     # I と I_prime は事前に用意されているものとする
@@ -157,14 +154,14 @@ def main():
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    # theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
-    # 目的関数を可視化
-    visualize_objective_function(img_input, img_output)
+    theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
     # 可視化
-    # print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
-    # plt.plot(theta_history)
-    # plt.plot(scale_history)
-    # plt.grid(True)
-    # plt.show()
+    print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
+    plt.plot(theta_history)
+    plt.plot(scale_history)
+    plt.grid(True)
+    plt.show()
+    # 目的関数を可視化
+    # visualize_objective_function(img_input, img_output)
 if __name__ == "__main__":
     main()
