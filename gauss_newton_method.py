@@ -9,7 +9,7 @@
 ・回転角度
 ・スケールパラメータ
 実行：
-python gauss_newton_method.py input/color/Lenna.bmp transformed_image.jpg
+python gauss_newton_method.py input.jpg output.jpg
 【情報】
 作成者：勝田尚樹
 作成日：2025/7/23
@@ -18,7 +18,6 @@ import sys
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import similarity_transform as st
 
 
@@ -45,15 +44,15 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(img_input, img_output):
+def estimate_by_gauss_newton_method(img_input, img_output, threshold=1e-5, max_loop=1000):
     # 初期値設定
     theta = np.deg2rad(20)
-    scale = 1
+    scale = 1.2
 
     I_prime_org = img_input
     I = img_output
 
-    threshold = 1e-4
+    threshold = 1e-5
     max_loop = 1000
 
     theta_history = []
@@ -61,12 +60,15 @@ def estimate_by_gauss_newton_method(img_input, img_output):
     
     H, W = I.shape[:2]
     y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
-    x_coords = x_coords - (W - 1) / 2
-    y_coords = y_coords - (H - 1) / 2
+    # x_coords = x_coords - (W - 1) / 2
+    # y_coords = y_coords - (H - 1) / 2
+    x_coords = x_coords - W / 2
+    y_coords = y_coords - H / 2
     # breakpoint()
     for i in range(max_loop):
         M = st.compute_M(scale, theta, 0, 0)
         I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
+        I_prime = st.crop_img_into_circle(I_prime)
         I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=5, sigma=2)
         # JθとJθθの計算
         dxprime_dtheta = -scale * (x_coords * np.sin(theta) + y_coords * np.cos(theta))
@@ -112,7 +114,7 @@ def visualize_objective_function(img_input, img_output):
     # パラメータ範囲
     I_prime_org = img_input
     I = img_output
-    theta_values = np.arange(0, 10, 1)      # 0 ～ 360度, 1度刻み
+    theta_values = np.arange(0, 30, 1)      # 0 ～ 360度, 1度刻み
     scale_values = np.arange(0.5, 1.6, 0.1)    # 0 ～ 3, 0.1刻み
     # Jの結果格納用 (scale x theta の2次元配列)
     J_values = np.zeros((len(scale_values), len(theta_values)))
@@ -124,8 +126,9 @@ def visualize_objective_function(img_input, img_output):
             # 相似変換を適用
             M = st.compute_M(scale, theta_rad, 0, 0)
             I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
+            I_prime_cropped = st.crop_img_into_circle(I_prime)
             # 目的関数Jを計算
-            J = 0.5 * np.sum((I_prime - I) ** 2)
+            J = 0.5 * np.sum((I_prime_cropped - I) ** 2)
             J_values[i, j] = J
     # すでに計算済みの J_values, theta_values, scale_values を使用
     Theta, Scale = np.meshgrid(theta_values, scale_values)
@@ -156,14 +159,14 @@ def main():
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
+    # theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
     # 目的関数を可視化
-    # visualize_objective_function(img_input, img_output)
+    visualize_objective_function(img_input, img_output)
     # 可視化
-    print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
-    plt.plot(theta_history)
-    plt.plot(scale_history)
-    plt.grid(True)
-    plt.show()
+    # print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
+    # plt.plot(theta_history)
+    # plt.plot(scale_history)
+    # plt.grid(True)
+    # plt.show()
 if __name__ == "__main__":
     main()
