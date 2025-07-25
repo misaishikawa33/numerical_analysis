@@ -60,8 +60,6 @@ def estimate_by_gauss_newton_method(img_input, img_output, threshold=1e-5, max_l
     
     H, W = I.shape[:2]
     y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
-    # x_coords = x_coords - (W - 1) / 2
-    # y_coords = y_coords - (H - 1) / 2
     x_coords = x_coords - W / 2
     y_coords = y_coords - H / 2
     # breakpoint()
