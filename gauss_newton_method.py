@@ -84,9 +84,6 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         J_scale_scale_mat = (I_prime_dx * dxprime_dscale + I_prime_dy * dyprime_dscale) ** 2 
         J_scale_scale = np.sum(J_scale_scale_mat)
         # JθSの計算
-        # dxprime_dthetascale = - x_coords * np.sin(theta) - y_coords * np.cos(theta)
-        # dyprime_dthetascale = x_coords * np.cos(theta) - y_coords * np.sin(theta)
-        # J_theta_scale_mat = (I_prime - I) * (I_prime_dx * dxprime_dthetascale + I_prime_dy * dyprime_dthetascale)
         J_theta_scale_mat = (I_prime_dx * dxprime_dtheta + I_prime_dy * dyprime_dtheta) * (I_prime_dx * dxprime_dscale + I_prime_dy * dyprime_dscale)
         J_theta_scale = np.sum(J_theta_scale_mat)
 
@@ -105,7 +102,7 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         scale_history.append(scale)
         print(f"delta_theta;{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale}")
     print(f"反復回数：{i}")
-    return theta, scale, theta_history, scale_history
+    return np.rad2deg(theta), scale, theta_history, scale_history
 
 def main():
     # データ準備
@@ -140,7 +137,7 @@ def main():
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input_cropped, img_output_cropped, 
+    theta_est, scale_est, theta_history, scale_history = estimate_by_gauss_newton_method(img_input_cropped, img_output_cropped, 
                                                                                  scale_init=scale_init, 
                                                                                  theta_init=theta_init_deg, 
                                                                                  threshold=threshold, 
@@ -148,7 +145,14 @@ def main():
                                                                                  kernel_size=kernel_size, 
                                                                                  sigma=sigma)
     # 可視化
-    print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
+    M = st.compute_M(scale_est, np.deg2rad(theta_est), 0, 0)
+    img_est = st.apply_similarity_transform_reverse(img_input_cropped, M)
+    img_est_cropped = st.crop_img_into_circle(img_est)
+    cv2.imshow("est", img_est_cropped)
+    cv2.imshow("true", img_output_cropped)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    print(f"推定結果 角度(deg):{theta_est},\t 角度(rad):{np.deg2rad(theta_est)},\t スケール:{scale_est}")
     plt.plot(theta_history)
     plt.plot(scale_history)
     plt.grid(True)
