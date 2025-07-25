@@ -3,27 +3,33 @@
 入力画像と相似変換によって変換した出力画像から回転角度θとスケールパラメータsをガウス・ニュートン法によって推定するプログラム
 【使用方法】
 入力：
-・元画像
-・相似変換した画像
+・使用する画像
+・真値（角度、スケール）
+・初期値（角度、スケール）
+・終了条件（閾値、最大反復回数）
+・ガウシアンフィルタのパラメータ（カーネルサイズ、シグマ）
 出力：
 ・回転角度
 ・スケールパラメータ
 実行：
-python gauss_newton_method.py input.jpg output.jpg
+python gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} {初期値の角度(deg)} {初期値のスケール} {収束判定の閾値} {最大反復回数} {ガウシアンフィルタのカーネルサイズ} {ガウシアンフィルタのシグマ}
+python gauss_newton_method.py input/color/Lenna.bmp --scale_true 1 --theta_true 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
 
 【情報】
 作成者：勝田尚樹
 作成日：2025/7/23
 """
 import sys
+import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import similarity_transform as st
+import plot_objective_function as pof
 
 
 # x方向とy方向に平滑微分フィルタを適用する
-def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
+def apply_smoothing_differrential_filter(img, kernel_size, sigma):
     # 平滑化
     img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
     # cv2.imshow("img_blurred", img_blurred)
@@ -45,27 +51,24 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(img_input, img_output, theta_init=0, scale_init=1, threshold=1e-5, max_loop=1000):
+def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, theta_init=0, threshold=1e-6, max_loop=1000, kernel_size=5, sigma=2):
     # 初期値設定
     theta = np.deg2rad(theta_init)
     scale = scale_init
-
     I_prime_org = img_input
     I = img_output
-
     theta_history = []
     scale_history = []
-    
     H, W = I.shape[:2]
     y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
     x_coords = x_coords - W / 2
     y_coords = y_coords - H / 2
-    # breakpoint()
     for i in range(max_loop):
+        # 推定値を使って画像を相似変換
         M = st.compute_M(scale, theta, 0, 0)
         I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
         I_prime = st.crop_img_into_circle(I_prime)
-        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=5, sigma=2)
+        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=kernel_size, sigma=sigma)
         # JθとJθθの計算
         dxprime_dtheta = -scale * (x_coords * np.sin(theta) + y_coords * np.cos(theta))
         dyprime_dtheta = scale * (x_coords * np.cos(theta) - y_coords * np.sin(theta))
@@ -104,57 +107,46 @@ def estimate_by_gauss_newton_method(img_input, img_output, theta_init=0, scale_i
     print(f"反復回数：{i}")
     return theta, scale, theta_history, scale_history
 
-# 目的関数を3次元空間にプロットする。極小値確認用。ただし、めっちゃ実行時間かかる
-def visualize_objective_function(img_input, img_output):
-    # パラメータ範囲
-    I_prime_org = img_input
-    I = img_output
-    theta_values = np.arange(0, 30, 1)  
-    scale_values = np.arange(0.5, 1.6, 0.1)    
-    # Jの結果格納用 (scale x theta の2次元配列)
-    J_values = np.zeros((len(scale_values), len(theta_values)))
-    # I と I_prime は事前に用意されているものとする
-    for i, scale in enumerate(scale_values):
-        for j, theta in enumerate(theta_values):
-            # 角度をラジアンに変換
-            theta_rad = np.deg2rad(theta)
-            # 相似変換を適用
-            M = st.compute_M(scale, theta_rad, 0, 0)
-            I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
-            I_prime_cropped = st.crop_img_into_circle(I_prime)
-            # 目的関数Jを計算
-            J = 0.5 * np.sum((I_prime_cropped - I) ** 2)
-            J_values[i, j] = J
-    # すでに計算済みの J_values, theta_values, scale_values を使用
-    Theta, Scale = np.meshgrid(theta_values, scale_values)
-    fig = plt.figure(figsize=(10, 7))
-    ax = fig.add_subplot(111, projection='3d')
-    # 3Dサーフェスプロット
-    surf = ax.plot_surface(Theta, Scale, J_values, cmap='viridis', edgecolor='none')
-    # 軸ラベル
-    ax.set_xlabel('Theta (degrees)')
-    ax.set_ylabel('Scale')
-    ax.set_zlabel('Objective Function J')
-    ax.set_title('3D Plot of J(Theta, Scale)')
-    # カラーバー
-    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label='J')
-    plt.show()
-
 def main():
     # データ準備
-    if len(sys.argv) != 3:
-        print("Usage: python gauss_newton_method.py {元画像のパス} {相似変換した画像のパス}")
-        sys.exit(1)
-    img_input_path = sys.argv[1]
-    img_output_path = sys.argv[2]
-    img_input = cv2.imread(img_input_path, cv2.IMREAD_GRAYSCALE)
-    img_output = cv2.imread(img_output_path, cv2.IMREAD_GRAYSCALE)
-    cv2.imshow("input", img_input)
-    cv2.imshow("output", img_output)
+    parser = argparse.ArgumentParser(description="ガウス・ニュートン法の実験パラメータ設定")
+    parser.add_argument("image_path", type=str, help="入力画像のパス")
+    parser.add_argument("--scale_true", type=float, required=True, help="真値のスケール")
+    parser.add_argument("--theta_true", type=float, required=True, help="真値の角度(deg)")
+    parser.add_argument("--scale_init", type=float, default=1, help="初期値のスケール")
+    parser.add_argument("--theta_init", type=float, default=0, help="初期値の角度(deg)")
+    parser.add_argument("--threshold", type=float, default=1e-5, help="収束判定の閾値")
+    parser.add_argument("--max_loop", type=int, default=1000, help="最大反復回数")
+    parser.add_argument("--kernel_size", type=int, default=5, help="ガウシアンフィルタのカーネルサイズ")
+    parser.add_argument("--sigma", type=float, default=2, help="ガウシアンフィルタのシグマ")
+    args = parser.parse_args()
+    img_path = args.image_path
+    scale_true = args.scale_true
+    theta_true_deg = args.theta_true
+    scale_init = args.scale_init
+    theta_init_deg = args.theta_init
+    threshold = args.threshold
+    max_loop = args.max_loop
+    kernel_size = args.kernel_size
+    sigma = args.sigma
+    # 画像読み込みと相似変換の適用
+    img_input = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    img_input_cropped = st.crop_img_into_circle(img_input)
+    M = st.compute_M(scale_true, np.deg2rad(theta_true_deg), 0, 0)
+    img_output = st.apply_similarity_transform_reverse(img_input_cropped, M)
+    img_output_cropped = st.crop_img_into_circle(img_output)
+    cv2.imshow("input", img_input_cropped)
+    cv2.imshow("output", img_output_cropped)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
+    theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input_cropped, img_output_cropped, 
+                                                                                 scale_init=scale_init, 
+                                                                                 theta_init=theta_init_deg, 
+                                                                                 threshold=threshold, 
+                                                                                 max_loop=max_loop, 
+                                                                                 kernel_size=kernel_size, 
+                                                                                 sigma=sigma)
     # 可視化
     print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
     plt.plot(theta_history)
@@ -162,6 +154,10 @@ def main():
     plt.grid(True)
     plt.show()
     # 目的関数を可視化
-    # visualize_objective_function(img_input, img_output)
+    # pof.visualize_objective_function(img_input_cropped, img_output_cropped,
+    #                                  theta_max=10,
+    #                                  theta_min=0,
+    #                                  sigma_max=2,
+    #                                  simga_min=0.1)
 if __name__ == "__main__":
     main()
