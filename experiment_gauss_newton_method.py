@@ -12,8 +12,8 @@
 ・回転角度
 ・スケールパラメータ
 実行：
-python gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ}
-python gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
+python experiment_gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ}
+python experiment_gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
 （ 「--」の引数は省略可。初期値はプログラムを参照）
 【情報】
 作成者：勝田尚樹
@@ -31,19 +31,22 @@ import plot_objective_function as pof
 # x方向とy方向に平滑微分フィルタを適用する
 def apply_smoothing_differrential_filter(img, kernel_size, sigma):
     # 平滑化
-    img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
+    # img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
+    # # 微分
+    # # 単純な差分フィルタ
+    # kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
+    # kernel_dy = np.array([[-1], [0], [1]], dtype=np.float32)
+    # # フィルタ適用
+    # dx = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dx)
+    # dy = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dy)
+    # # 表示用に変換
+    # dx_disp = cv2.convertScaleAbs(dx)
+    # dy_disp = cv2.convertScaleAbs(dy)
+    # Sobelフィルタ（ガウシアン微分フィルタとほぼ同等）
+    dx_disp = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=3)  # x方向の微分
+    dy_disp = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=3)  # y方向の微分
     # cv2.imshow("img_blurred", img_blurred)
     # cv2.waitKey(0)
-    # 微分
-    # 単純な差分フィルタ
-    kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
-    kernel_dy = np.array([[-1], [0], [1]], dtype=np.float32)
-    # フィルタ適用
-    dx = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dx)
-    dy = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dy)
-    # 表示用に変換
-    dx_disp = cv2.convertScaleAbs(dx)
-    dy_disp = cv2.convertScaleAbs(dy)
     # cv2.imshow("dx", dx_disp)
     # cv2.imshow("dy", dy_disp)
     # cv2.waitKey(0)
@@ -68,6 +71,8 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         M = st.compute_M(scale, theta, 0, 0)
         I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
         I_prime = st.crop_img_into_circle(I_prime)
+        cv2.imshow("I_prime", I_prime)
+        cv2.waitKey(1)
         I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=kernel_size, sigma=sigma)
         # JθとJθθの計算
         dxprime_dtheta = -scale * (x_coords * np.sin(theta) + y_coords * np.cos(theta))
@@ -85,22 +90,23 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         J_scale_scale = np.sum(J_scale_scale_mat)
         # JθSの計算
         J_theta_scale_mat = (I_prime_dx * dxprime_dtheta + I_prime_dy * dyprime_dtheta) * (I_prime_dx * dxprime_dscale + I_prime_dy * dyprime_dscale)
+        # J_theta_scale_mat = (I_prime_dx**2 * dxprime_dtheta * dxprime_dscale) + (I_prime_dx * I_prime_dy * dxprime_dtheta * dyprime_dscale) + (I_prime_dy * I_prime_dx * dyprime_dtheta * dxprime_dscale) + (I_prime_dy**2 * dyprime_dtheta * dyprime_dscale)    
         J_theta_scale = np.sum(J_theta_scale_mat)
+        objective_func_val = 0.5 * np.sum((I_prime - I) ** 2)
 
         nabla_u_J = np.array([J_theta, J_scale])
         H_u = np.array([[J_theta_theta, J_theta_scale],
                         [J_theta_scale, J_scale_scale]])
-        # H_u_inv = np.linalg.inv(H_u)
-        # delta_theta, delta_scale =  - H_u_inv @ nabla_u_J
-        # print(H_u, nabla_u_J)
-        delta_theta, delta_scale = np.linalg.solve(H_u, nabla_u_J)
+        H_u_inv = np.linalg.inv(H_u)
+        delta_theta, delta_scale =  - H_u_inv @ nabla_u_J
+        # delta_theta, delta_scale = np.linalg.solve(H_u, nabla_u_J)
         if np.abs(delta_theta) < threshold and np.abs(delta_scale) < threshold:
             break
-        theta -= delta_theta
-        scale -= delta_scale
+        theta += delta_theta
+        scale += delta_scale
         theta_history.append(np.rad2deg(theta))
         scale_history.append(scale)
-        print(f"delta_theta;{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale}")
+        print(f"delta_theta:{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale},\terror:{objective_func_val}")
     print(f"反復回数：{i}")
     return np.rad2deg(theta), scale, theta_history, scale_history
 
@@ -112,7 +118,7 @@ def main():
     parser.add_argument("theta_true", type=float, help="真値の角度(deg)")
     parser.add_argument("--scale_init", type=float, default=1, help="初期値のスケール")
     parser.add_argument("--theta_init", type=float, default=0, help="初期値の角度(deg)")
-    parser.add_argument("--threshold", type=float, default=1e-5, help="収束判定の閾値")
+    parser.add_argument("--threshold", type=float, default=1e-6, help="収束判定の閾値")
     parser.add_argument("--max_loop", type=int, default=1000, help="最大反復回数")
     parser.add_argument("--kernel_size", type=int, default=5, help="ガウシアンフィルタのカーネルサイズ")
     parser.add_argument("--sigma", type=float, default=2, help="ガウシアンフィルタのシグマ")
@@ -130,14 +136,14 @@ def main():
     img_input = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     img_input_cropped = st.crop_img_into_circle(img_input)
     M = st.compute_M(scale_true, np.deg2rad(theta_true_deg), 0, 0)
-    img_output = st.apply_similarity_transform_reverse(img_input_cropped, M)
+    img_output = st.apply_similarity_transform_reverse(img_input, M)
     img_output_cropped = st.crop_img_into_circle(img_output)
     cv2.imshow("input", img_input_cropped)
     cv2.imshow("output", img_output_cropped)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta_est, scale_est, theta_history, scale_history = estimate_by_gauss_newton_method(img_input_cropped, img_output_cropped, 
+    theta_est, scale_est, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output_cropped, 
                                                                                  scale_init=scale_init, 
                                                                                  theta_init=theta_init_deg, 
                                                                                  threshold=threshold, 
