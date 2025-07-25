@@ -24,10 +24,11 @@ import similarity_transform as st
 
 # x方向とy方向に平滑微分フィルタを適用する
 def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
-    # 平滑化
+    # 平滑化(ガウシアンフィルタ)
     img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
     # cv2.imshow("img_blurred", img_blurred)
     # cv2.waitKey(0)
+
     # 微分
     # 単純な差分フィルタ
     kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
@@ -35,6 +36,8 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     # フィルタ適用
     dx = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dx)
     dy = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dy)
+
+
     # 表示用に変換
     dx_disp = cv2.convertScaleAbs(dx)
     dy_disp = cv2.convertScaleAbs(dy)
@@ -45,13 +48,13 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(img_input, img_output, theta_init=0, scale_init=1, threshold=1e-5, max_loop=1000):
+def estimate_by_gauss_newton_method(img_input, img_output, theta_init=10, scale_init=1.2, threshold=1e-5, max_loop=1000):
     # 初期値設定
-    theta = np.deg2rad(theta_init)
-    scale = scale_init
+    theta = np.deg2rad(theta_init) # 初期角度:角度はラジアンで扱う
+    scale = scale_init             # 初期スケール
 
-    I_prime_org = img_input
-    I = img_output
+    I_prime_org = img_input # 元画像(回転済み)
+    I = img_output          # 推定画像
 
     theta_history = []
     scale_history = []
@@ -63,9 +66,9 @@ def estimate_by_gauss_newton_method(img_input, img_output, theta_init=0, scale_i
     # breakpoint()
     for i in range(max_loop):
         M = st.compute_M(scale, theta, 0, 0)
-        I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
+        I_prime = st.apply_similarity_transform_reverse(I_prime_org, M) # 逆変換
         I_prime = st.crop_img_into_circle(I_prime)
-        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=5, sigma=2)
+        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=5, sigma=2) # 微分
         # JθとJθθの計算
         dxprime_dtheta = -scale * (x_coords * np.sin(theta) + y_coords * np.cos(theta))
         dyprime_dtheta = scale * (x_coords * np.cos(theta) - y_coords * np.sin(theta))
