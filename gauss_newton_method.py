@@ -12,9 +12,9 @@
 ・回転角度
 ・スケールパラメータ
 実行：
-python gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} {初期値の角度(deg)} {初期値のスケール} {収束判定の閾値} {最大反復回数} {ガウシアンフィルタのカーネルサイズ} {ガウシアンフィルタのシグマ}
-python gauss_newton_method.py input/color/Lenna.bmp --scale_true 1 --theta_true 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
-
+python gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ}
+python gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
+（ 「--」の引数は省略可。初期値はプログラムを参照）
 【情報】
 作成者：勝田尚樹
 作成日：2025/7/23
@@ -108,8 +108,8 @@ def main():
     # データ準備
     parser = argparse.ArgumentParser(description="ガウス・ニュートン法の実験パラメータ設定")
     parser.add_argument("image_path", type=str, help="入力画像のパス")
-    parser.add_argument("--scale_true", type=float, required=True, help="真値のスケール")
-    parser.add_argument("--theta_true", type=float, required=True, help="真値の角度(deg)")
+    parser.add_argument("scale_true", type=float, help="真値のスケール")
+    parser.add_argument("theta_true", type=float, help="真値の角度(deg)")
     parser.add_argument("--scale_init", type=float, default=1, help="初期値のスケール")
     parser.add_argument("--theta_init", type=float, default=0, help="初期値の角度(deg)")
     parser.add_argument("--threshold", type=float, default=1e-5, help="収束判定の閾値")
