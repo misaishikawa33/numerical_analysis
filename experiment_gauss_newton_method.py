@@ -152,7 +152,7 @@ def main():
     # 保存
     img_name = os.path.basename(img_path)
     output_dir = f"output/{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}"
-    # 推定結果を用いて画像を相似変換
+    # 初期値と推定結果の画像を保存
     M = st.compute_M(scale_init, np.deg2rad(theta_init_deg), 0, 0)
     img_init = st.apply_similarity_transform_reverse(img_input, M)
     img_init_cropped = st.crop_img_into_circle(img_init)
@@ -163,7 +163,7 @@ def main():
     # 入力画像、出力画像、推定画像の保存
     cv2.imwrite(os.path.join(output_dir, "input.jpg"), img_input_cropped)
     cv2.imwrite(os.path.join(output_dir, "output.jpg"), img_output_cropped)
-    cv2.imwrite(os.path.join(output_dir, "est.jpg"), img_init_cropped)
+    cv2.imwrite(os.path.join(output_dir, "init.jpg"), img_init_cropped)
     cv2.imwrite(os.path.join(output_dir, "est.jpg"), img_est_cropped)
 
     # cv2.imshow("est", img_est_cropped)
