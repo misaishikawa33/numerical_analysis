@@ -70,8 +70,8 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         M = st.compute_M(scale, theta, 0, 0)
         I_prime = st.apply_similarity_transform_reverse(I_prime_org, M)
         I_prime = st.crop_img_into_circle(I_prime)
-        cv2.imshow("I_prime", I_prime)
-        cv2.waitKey(1)
+        # cv2.imshow("I_prime", I_prime)
+        # cv2.waitKey(1)
         I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime, kernel_size=kernel_size, sigma=sigma)
         # JθとJθθの計算
         dxprime_dtheta = -scale * (x_coords * np.sin(theta) + y_coords * np.cos(theta))
@@ -136,10 +136,10 @@ def main():
     M = st.compute_M(scale_true, np.deg2rad(theta_true_deg), 0, 0)
     img_output = st.apply_similarity_transform_reverse(img_input, M)
     img_output_cropped = st.crop_img_into_circle(img_output)
-    cv2.imshow("input", img_input_cropped)
-    cv2.imshow("output", img_output_cropped)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.imshow("input", img_input_cropped)
+    # cv2.imshow("output", img_output_cropped)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
     theta_est, scale_est, theta_history, scale_history, iteration = estimate_by_gauss_newton_method(img_input, img_output_cropped, 
                                                                                         scale_init=scale_init, 
@@ -153,14 +153,19 @@ def main():
     img_name = os.path.basename(img_path)
     output_dir = f"output/{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}"
     # 推定結果を用いて画像を相似変換
+    M = st.compute_M(scale_init, np.deg2rad(theta_init_deg), 0, 0)
+    img_init = st.apply_similarity_transform_reverse(img_input, M)
+    img_init_cropped = st.crop_img_into_circle(img_init)
     M = st.compute_M(scale_est, np.deg2rad(theta_est), 0, 0)
-    img_est = st.apply_similarity_transform_reverse(img_input_cropped, M)
+    img_est = st.apply_similarity_transform_reverse(img_input, M)
     img_est_cropped = st.crop_img_into_circle(img_est)
     os.makedirs(output_dir, exist_ok=True)
     # 入力画像、出力画像、推定画像の保存
     cv2.imwrite(os.path.join(output_dir, "input.jpg"), img_input_cropped)
     cv2.imwrite(os.path.join(output_dir, "output.jpg"), img_output_cropped)
+    cv2.imwrite(os.path.join(output_dir, "est.jpg"), img_init_cropped)
     cv2.imwrite(os.path.join(output_dir, "est.jpg"), img_est_cropped)
+
     # cv2.imshow("est", img_est_cropped)
     # cv2.imshow("true", img_output_cropped)
     # cv2.waitKey(0)
@@ -183,8 +188,10 @@ def main():
     # plt.show()
     # 結果をCSV形式で保存
     result_summary = pd.DataFrame([{
-        "角度(deg)": theta_est,
-        "スケール": scale_est,
+        "真値 角度(deg)": theta_true_deg,
+        "推定 角度(deg)": theta_est,
+        "真値 スケール": scale_true,
+        "推定 スケール": scale_est,
         "反復回数": iteration
     }])
     result_summary.to_csv(os.path.join(output_dir, "result_summary.csv"), index=False, encoding="utf-8-sig")

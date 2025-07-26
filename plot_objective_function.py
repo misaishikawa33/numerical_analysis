@@ -1,3 +1,20 @@
+"""
+【概要】
+画像を相似変換するプログラム。
+
+【使用方法】
+experiment_gauss_newton_method.pyから実行
+    # 目的関数を可視化
+    # pof.visualize_objective_function(img_input_cropped, img_output_cropped,
+    #                                  theta_max=10,
+    #                                  theta_min=0,
+    #                                  sigma_max=2,
+    #                                  simga_min=0.1)
+【情報】
+作成者：勝田尚樹
+作成日：2025/07/23
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import similarity_transform as st
