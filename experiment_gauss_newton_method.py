@@ -26,25 +26,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import similarity_transform as st
 import plot_objective_function as pof
-
+import os
+import pandas as pd
 
 # x方向とy方向に平滑微分フィルタを適用する
-def apply_smoothing_differrential_filter(img, kernel_size, sigma):
+def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
+    # 平滑化＋微分フィルタ
     # 平滑化
     # img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
-    # # 微分
-    # # 単純な差分フィルタ
+    # 微分
     # kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
     # kernel_dy = np.array([[-1], [0], [1]], dtype=np.float32)
-    # # フィルタ適用
     # dx = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dx)
     # dy = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dy)
-    # # 表示用に変換
     # dx_disp = cv2.convertScaleAbs(dx)
     # dy_disp = cv2.convertScaleAbs(dy)
-    # Sobelフィルタ（ガウシアン微分フィルタとほぼ同等）
-    dx_disp = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=3)  # x方向の微分
-    dy_disp = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=3)  # y方向の微分
+    # 平滑微分フィルタ
+    dx_disp = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=kernel_size)  # x方向の微分
+    dy_disp = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=kernel_size)  # y方向の微分
     # cv2.imshow("img_blurred", img_blurred)
     # cv2.waitKey(0)
     # cv2.imshow("dx", dx_disp)
@@ -54,7 +53,7 @@ def apply_smoothing_differrential_filter(img, kernel_size, sigma):
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, theta_init=0, threshold=1e-6, max_loop=1000, kernel_size=5, sigma=2):
+def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, theta_init=0, threshold=1e-6, max_loop=1000, kernel_size=3, sigma=1):
     # 初期値設定
     theta = np.deg2rad(theta_init)
     scale = scale_init
@@ -107,8 +106,7 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         theta_history.append(np.rad2deg(theta))
         scale_history.append(scale)
         print(f"delta_theta:{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale},\terror:{objective_func_val}")
-    print(f"反復回数：{i}")
-    return np.rad2deg(theta), scale, theta_history, scale_history
+    return np.rad2deg(theta), scale, theta_history, scale_history, i
 
 def main():
     # データ準備
@@ -120,8 +118,8 @@ def main():
     parser.add_argument("--theta_init", type=float, default=0, help="初期値の角度(deg)")
     parser.add_argument("--threshold", type=float, default=1e-6, help="収束判定の閾値")
     parser.add_argument("--max_loop", type=int, default=1000, help="最大反復回数")
-    parser.add_argument("--kernel_size", type=int, default=5, help="ガウシアンフィルタのカーネルサイズ")
-    parser.add_argument("--sigma", type=float, default=2, help="ガウシアンフィルタのシグマ")
+    parser.add_argument("--kernel_size", type=int, default=3, help="ガウシアンフィルタのカーネルサイズ")
+    parser.add_argument("--sigma", type=float, default=1, help="ガウシアンフィルタのシグマ")
     args = parser.parse_args()
     img_path = args.image_path
     scale_true = args.scale_true
@@ -143,26 +141,64 @@ def main():
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta_est, scale_est, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output_cropped, 
-                                                                                 scale_init=scale_init, 
-                                                                                 theta_init=theta_init_deg, 
-                                                                                 threshold=threshold, 
-                                                                                 max_loop=max_loop, 
-                                                                                 kernel_size=kernel_size, 
-                                                                                 sigma=sigma)
-    # 可視化
+    theta_est, scale_est, theta_history, scale_history, iteration = estimate_by_gauss_newton_method(img_input, img_output_cropped, 
+                                                                                        scale_init=scale_init, 
+                                                                                        theta_init=theta_init_deg, 
+                                                                                        threshold=threshold, 
+                                                                                        max_loop=max_loop, 
+                                                                                        kernel_size=kernel_size, 
+                                                                                        sigma=sigma)
+    print(f"推定結果 角度(deg):{theta_est},\t スケール:{scale_est},\t 反復回数{iteration}")
+    # 保存
+    img_name = os.path.basename(img_path)
+    output_dir = f"output/{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}"
+    # 推定結果を用いて画像を相似変換
     M = st.compute_M(scale_est, np.deg2rad(theta_est), 0, 0)
     img_est = st.apply_similarity_transform_reverse(img_input_cropped, M)
     img_est_cropped = st.crop_img_into_circle(img_est)
-    cv2.imshow("est", img_est_cropped)
-    cv2.imshow("true", img_output_cropped)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    print(f"推定結果 角度(deg):{theta_est},\t 角度(rad):{np.deg2rad(theta_est)},\t スケール:{scale_est}")
-    plt.plot(theta_history)
-    plt.plot(scale_history)
-    plt.grid(True)
-    plt.show()
+    os.makedirs(output_dir, exist_ok=True)
+    # 入力画像、出力画像、推定画像の保存
+    cv2.imwrite(os.path.join(output_dir, "input.jpg"), img_input_cropped)
+    cv2.imwrite(os.path.join(output_dir, "output.jpg"), img_output_cropped)
+    cv2.imwrite(os.path.join(output_dir, "est.jpg"), img_est_cropped)
+    # cv2.imshow("est", img_est_cropped)
+    # cv2.imshow("true", img_output_cropped)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    # 推定結果の変化をグラフに描画
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4))  # 横幅を広めに設定
+    axs[0].plot(scale_history)
+    axs[0].set_title("Scale History")
+    axs[0].set_xlabel("Iteration")
+    axs[0].set_ylabel("Scale")
+    axs[0].grid(True)
+    axs[1].plot(theta_history)
+    axs[1].set_title("Theta History")
+    axs[1].set_xlabel("Iteration")
+    axs[1].set_ylabel("Theta")
+    axs[1].grid(True)
+    plt.tight_layout()
+    # 描画結果の保存
+    fig.savefig(os.path.join(output_dir, "scale_theta_history.png")) 
+    # plt.show()
+    # 結果をCSV形式で保存
+    result_summary = pd.DataFrame([{
+        "角度(deg)": theta_est,
+        "スケール": scale_est,
+        "反復回数": iteration
+    }])
+    result_summary.to_csv(os.path.join(output_dir, "result_summary.csv"), index=False, encoding="utf-8-sig")
+    # 推定結果変化化をCSV形式で保存
+    history_length = max(len(theta_history), len(scale_history))
+    theta_history = np.pad(theta_history, (0, history_length - len(theta_history)))
+    scale_history = np.pad(scale_history, (0, history_length - len(scale_history)))
+    history_df = pd.DataFrame({
+        "theta_history": theta_history,
+        "scale_history": scale_history
+    })
+    history_df.to_csv(os.path.join(output_dir, "history.csv"), index=False, encoding="utf-8-sig")
+
+
     # 目的関数を可視化
     # pof.visualize_objective_function(img_input_cropped, img_output_cropped,
     #                                  theta_max=10,
