@@ -78,12 +78,17 @@ def main():
     ty = float(sys.argv[5])
     # 画像準備
     img = cv2.imread(input_path, cv2.IMREAD_COLOR)
+
     # 相似変換の適用
-    M = compute_M(scale, theta_rad, tx, ty)
-    result = apply_similarity_transform_reverse(img, M)
+    M = compute_M(scale, theta_rad, tx, ty) # 変換行列の計算
+    result = apply_similarity_transform_reverse(img, M) # 逆変換
+
+
     # 円形に切り出し
     img_cropped = crop_img_into_circle(img)
     result_cropped = crop_img_into_circle(result)
+
+    
     # 結果を表示・保存
     cv2.imshow("input", img_cropped)
     cv2.imshow("output", result_cropped)

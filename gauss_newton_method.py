@@ -48,7 +48,7 @@ def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
     return dx_disp, dy_disp
 
 # ガウスニュートン法によりパラメータを推定する
-def estimate_by_gauss_newton_method(img_input, img_output, theta_init=10, scale_init=1.2, threshold=1e-5, max_loop=1000):
+def estimate_by_gauss_newton_method(img_input, img_output, theta_init=0, scale_init=1, threshold=1e-5, max_loop=1000):
     # 初期値設定
     theta = np.deg2rad(theta_init) # 初期角度:角度はラジアンで扱う
     scale = scale_init             # 初期スケール
@@ -112,7 +112,7 @@ def visualize_objective_function(img_input, img_output):
     # パラメータ範囲
     I_prime_org = img_input
     I = img_output
-    theta_values = np.arange(0, 30, 1)  
+    theta_values = np.arange(0, 10, 1)  
     scale_values = np.arange(0.5, 1.6, 0.1)    
     # Jの結果格納用 (scale x theta の2次元配列)
     J_values = np.zeros((len(scale_values), len(theta_values)))
@@ -155,16 +155,16 @@ def main():
     cv2.imshow("input", img_input)
     cv2.imshow("output", img_output)
     cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    # ガウスニュートン法によりパラメータを推定
+    # cv2.destroyAllWindows()
+    #ガウスニュートン法によりパラメータを推定
     theta, scale, theta_history, scale_history = estimate_by_gauss_newton_method(img_input, img_output)
-    # 可視化
+    #可視化
     print(f"(deg):{np.rad2deg(theta)},\t (rad):{theta},\t (scale):{scale}")
     plt.plot(theta_history)
     plt.plot(scale_history)
     plt.grid(True)
     plt.show()
     # 目的関数を可視化
-    # visualize_objective_function(img_input, img_output)
+    visualize_objective_function(img_input, img_output)
 if __name__ == "__main__":
     main()
