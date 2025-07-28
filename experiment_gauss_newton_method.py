@@ -12,8 +12,8 @@
 ・回転角度
 ・スケールパラメータ
 実行：
-python experiment_gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ}
-python experiment_gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
+python experiment_gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ} --output_path {実験結果の出力先のフォルダパス}
+python experiment_gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2 --output_path output/exp1
 （ 「--」の引数は省略可。初期値はプログラムを参照）
 【情報】
 作成者：勝田尚樹
@@ -100,12 +100,13 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         delta_theta, delta_scale =  - H_u_inv @ nabla_u_J
         # delta_theta, delta_scale = np.linalg.solve(H_u, nabla_u_J)
         if np.abs(delta_theta) < threshold and np.abs(delta_scale) < threshold:
+            print(f"delta_theta:{delta_theta},\tdelta_scale:{delta_scale}")
             break
         theta += delta_theta
         scale += delta_scale
         theta_history.append(np.rad2deg(theta))
         scale_history.append(scale)
-        print(f"delta_theta:{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale},\terror:{objective_func_val}")
+        print(f"{i}, delta_theta:{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale},\terror:{objective_func_val}")
     return np.rad2deg(theta), scale, theta_history, scale_history, i
 
 def main():
@@ -120,6 +121,7 @@ def main():
     parser.add_argument("--max_loop", type=int, default=1000, help="最大反復回数")
     parser.add_argument("--kernel_size", type=int, default=3, help="ガウシアンフィルタのカーネルサイズ")
     parser.add_argument("--sigma", type=float, default=1, help="ガウシアンフィルタのシグマ")
+    parser.add_argument("--output_path", type=str, default="output", help="実験結果の出力先のフォルダパス")
     args = parser.parse_args()
     img_path = args.image_path
     scale_true = args.scale_true
@@ -130,6 +132,7 @@ def main():
     max_loop = args.max_loop
     kernel_size = args.kernel_size
     sigma = args.sigma
+    output_path = args.output_path
     # 画像読み込みと相似変換の適用
     img_input = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     img_input_cropped = st.crop_img_into_circle(img_input)
@@ -151,7 +154,7 @@ def main():
     print(f"推定結果 角度(deg):{theta_est},\t スケール:{scale_est},\t 反復回数{iteration}")
     # 保存
     img_name = os.path.basename(img_path)
-    output_dir = f"output/{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}"
+    output_dir = os.path.join(output_path, f"{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}")
     # 初期値と推定結果の画像を保存
     M = st.compute_M(scale_init, np.deg2rad(theta_init_deg), 0, 0)
     img_init = st.apply_similarity_transform_reverse(img_input, M)
