@@ -12,8 +12,8 @@
 ・回転角度
 ・スケールパラメータ
 実行：
-python experiment_gauss_newton_method.py {画像のパス} {真値の角度(deg)} {真値のスケール} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ}
-python experiment_gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
+python experiment_gauss_newton_method.py {画像のパス}  {真値のスケール} {真値の角度(deg)} --theta_init {初期値の角度(deg)} --scale_init {初期値のスケール} --threshold {収束判定の閾値} --max_loop {最大反復回数} --kernel_size {ガウシアンフィルタのカーネルサイズ} --sigma {ガウシアンフィルタのシグマ}
+python3 experiment_gauss_newton_method.py input/color/Lenna.bmp 1 5 --scale_init 1 --theta_init 0 --threshold 1e-5 --max_loop 1000 --kernel_size 5 --sigma 2
 （ 「--」の引数は省略可。初期値はプログラムを参照）
 【情報】
 作成者：勝田尚樹
