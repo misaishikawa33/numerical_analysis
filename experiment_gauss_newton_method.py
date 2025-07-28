@@ -61,6 +61,7 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
     I = img_output
     theta_history = []
     scale_history = []
+    error_history = []
     H, W = I.shape[:2]
     y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
     x_coords = x_coords - W / 2
@@ -100,13 +101,15 @@ def estimate_by_gauss_newton_method(img_input, img_output, *, scale_init=1, thet
         delta_theta, delta_scale =  - H_u_inv @ nabla_u_J
         # delta_theta, delta_scale = np.linalg.solve(H_u, nabla_u_J)
         if np.abs(delta_theta) < threshold and np.abs(delta_scale) < threshold:
+            print(f"delta_theta:{delta_theta},\tdelta_scale:{delta_scale}")
             break
         theta += delta_theta
         scale += delta_scale
         theta_history.append(np.rad2deg(theta))
         scale_history.append(scale)
-        print(f"delta_theta:{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale},\terror:{objective_func_val}")
-    return np.rad2deg(theta), scale, theta_history, scale_history, i
+        error_history.append(objective_func_val)
+        print(f"{i}, delta_theta:{delta_theta},\tdelta_scale:{delta_scale},\ttheta:{np.rad2deg(theta)},\tscale:{scale},\terror:{objective_func_val}")
+    return np.rad2deg(theta), scale, theta_history, scale_history, error_history, i
 
 def main():
     # データ準備
@@ -120,6 +123,7 @@ def main():
     parser.add_argument("--max_loop", type=int, default=1000, help="最大反復回数")
     parser.add_argument("--kernel_size", type=int, default=3, help="ガウシアンフィルタのカーネルサイズ")
     parser.add_argument("--sigma", type=float, default=1, help="ガウシアンフィルタのシグマ")
+    parser.add_argument("--output_path", type=str, default="output", help="実験結果の出力先のフォルダパス")
     args = parser.parse_args()
     img_path = args.image_path
     scale_true = args.scale_true
@@ -130,6 +134,7 @@ def main():
     max_loop = args.max_loop
     kernel_size = args.kernel_size
     sigma = args.sigma
+    output_path = args.output_path
     # 画像読み込みと相似変換の適用
     img_input = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     img_input_cropped = st.crop_img_into_circle(img_input)
@@ -141,7 +146,7 @@ def main():
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
     # ガウスニュートン法によりパラメータを推定
-    theta_est, scale_est, theta_history, scale_history, iteration = estimate_by_gauss_newton_method(img_input, img_output_cropped, 
+    theta_est, scale_est, theta_history, scale_history, error_history, iteration = estimate_by_gauss_newton_method(img_input, img_output_cropped, 
                                                                                         scale_init=scale_init, 
                                                                                         theta_init=theta_init_deg, 
                                                                                         threshold=threshold, 
@@ -151,7 +156,7 @@ def main():
     print(f"推定結果 角度(deg):{theta_est},\t スケール:{scale_est},\t 反復回数{iteration}")
     # 保存
     img_name = os.path.basename(img_path)
-    output_dir = f"output/{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}"
+    output_dir = os.path.join(output_path, f"{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}")
     # 初期値と推定結果の画像を保存
     M = st.compute_M(scale_init, np.deg2rad(theta_init_deg), 0, 0)
     img_init = st.apply_similarity_transform_reverse(img_input, M)
@@ -199,9 +204,11 @@ def main():
     history_length = max(len(theta_history), len(scale_history))
     theta_history = np.pad(theta_history, (0, history_length - len(theta_history)))
     scale_history = np.pad(scale_history, (0, history_length - len(scale_history)))
+    error_history = np.pad(error_history, (0, history_length - len(error_history)))
     history_df = pd.DataFrame({
         "theta_history": theta_history,
-        "scale_history": scale_history
+        "scale_history": scale_history,
+        "error_history": error_history
     })
     history_df.to_csv(os.path.join(output_dir, "history.csv"), index=False, encoding="utf-8-sig")
 
