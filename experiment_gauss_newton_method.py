@@ -24,17 +24,38 @@ import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import similarity_transform as st
 import plot_objective_function as pof
 import os
 import pandas as pd
 
+# 日本語フォントの設定
+plt.rcParams['font.family'] = 'DejaVu Sans'
+# 日本語フォントが利用可能な場合は設定
+try:
+    # 一般的な日本語フォントを試す
+    for font_name in ['Noto Sans CJK JP', 'IPAexGothic', 'Takao Gothic', 'Hiragino Sans', 'Yu Gothic']:
+        if font_name in [f.name for f in fm.fontManager.ttflist]:
+            plt.rcParams['font.family'] = font_name
+            break
+except:
+    # フォントが見つからない場合は英語表記にフォールバック
+    pass
+
 # x方向とy方向に平滑微分フィルタを適用する
 def apply_smoothing_differrential_filter(img, kernel_size=3, sigma=1):
-    # 平滑化＋微分フィルタ
-    # 平滑化
+    #平滑化なし
+    # kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
+    # kernel_dy = np.array([[-1], [0], [1]], dtype=np.float32)
+    # dx = cv2.filter2D(img, cv2.CV_64F, kernel_dx)
+    # dy = cv2.filter2D(img, cv2.CV_64F, kernel_dy)
+    # dx_disp = cv2.convertScaleAbs(dx)
+    # dy_disp = cv2.convertScaleAbs(dy)
+    # # 平滑化＋微分フィルタ
+    # # 平滑化
     # img_blurred = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigmaX=sigma)
-    # 微分
+    # #微分
     # kernel_dx = np.array([[-1, 0, 1]], dtype=np.float32)
     # kernel_dy = np.array([[-1], [0], [1]], dtype=np.float32)
     # dx = cv2.filter2D(img_blurred, cv2.CV_64F, kernel_dx)
@@ -154,6 +175,79 @@ def main():
                                                                                         kernel_size=kernel_size, 
                                                                                         sigma=sigma)
     print(f"推定結果 角度(deg):{theta_est},\t スケール:{scale_est},\t 反復回数{iteration}")
+
+    # 新規追加: 回転角度θに対する目的関数の一階微分 ∂J/∂θ
+    theta_range_grad = np.linspace(theta_true_deg - 10, theta_true_deg + 10, 100)
+    dJ_dtheta_range = []
+    
+    for theta_test in theta_range_grad:
+        M_test = st.compute_M(scale_true, np.deg2rad(theta_test), 0, 0)
+        I_prime_test = st.apply_similarity_transform_reverse(img_input, M_test)
+        I_prime_test = st.crop_img_into_circle(I_prime_test)
+        
+        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime_test, kernel_size=kernel_size, sigma=sigma)
+        
+        H, W = I_prime_test.shape[:2]
+        y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
+        x_coords = x_coords - W / 2
+        y_coords = y_coords - H / 2
+        
+        dxprime_dtheta = -scale_true * (x_coords * np.sin(np.deg2rad(theta_test)) + y_coords * np.cos(np.deg2rad(theta_test)))
+        dyprime_dtheta = scale_true * (x_coords * np.cos(np.deg2rad(theta_test)) - y_coords * np.sin(np.deg2rad(theta_test)))
+        
+        J_theta_grad = np.sum((I_prime_test - img_output_cropped) * (I_prime_dx * dxprime_dtheta + I_prime_dy * dyprime_dtheta))
+        dJ_dtheta_range.append(J_theta_grad)
+    
+    plt.figure(figsize=(8, 5))
+    plt.plot(theta_range_grad, dJ_dtheta_range, 'purple', linewidth=2, label='∂J/∂θ')
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+    plt.axvline(x=theta_true_deg, color='r', linestyle='--', linewidth=2, label=f'True value {theta_true_deg}°')
+    plt.axvline(x=theta_est, color='g', linestyle=':', linewidth=2, label=f'Estimated {theta_est:.2f}°')
+    plt.title("First derivative of objective function w.r.t. rotation angle θ")
+    plt.xlabel("Rotation angle θ (degrees)")
+    plt.ylabel("∂J/∂θ")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "gradient_vs_theta.png"), dpi=300)
+    plt.close()
+
+    # 新規追加: スケールsに対する目的関数の一階微分 ∂J/∂s
+    scale_range_grad = np.linspace(max(0.1, scale_true - 0.3), scale_true + 0.3, 100)
+    dJ_dscale_range = []
+    
+    for scale_test in scale_range_grad:
+        M_test = st.compute_M(scale_test, np.deg2rad(theta_true_deg), 0, 0)
+        I_prime_test = st.apply_similarity_transform_reverse(img_input, M_test)
+        I_prime_test = st.crop_img_into_circle(I_prime_test)
+        
+        I_prime_dx, I_prime_dy = apply_smoothing_differrential_filter(I_prime_test, kernel_size=kernel_size, sigma=sigma)
+        
+        H, W = I_prime_test.shape[:2]
+        y_coords, x_coords = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
+        x_coords = x_coords - W / 2
+        y_coords = y_coords - H / 2
+        
+        dxprime_dscale = x_coords * np.cos(np.deg2rad(theta_true_deg)) - y_coords * np.sin(np.deg2rad(theta_true_deg))
+        dyprime_dscale = x_coords * np.sin(np.deg2rad(theta_true_deg)) + y_coords * np.cos(np.deg2rad(theta_true_deg))
+        
+        J_scale_grad = np.sum((I_prime_test - img_output_cropped) * (I_prime_dx * dxprime_dscale + I_prime_dy * dyprime_dscale))
+        dJ_dscale_range.append(J_scale_grad)
+    
+    plt.figure(figsize=(8, 5))
+    plt.plot(scale_range_grad, dJ_dscale_range, 'orange', linewidth=2, label='∂J/∂s')
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+    plt.axvline(x=scale_true, color='r', linestyle='--', linewidth=2, label=f'True value {scale_true}')
+    plt.axvline(x=scale_est, color='g', linestyle=':', linewidth=2, label=f'Estimated {scale_est:.3f}')
+    plt.title("First derivative of objective function w.r.t. scale s")
+    plt.xlabel("Scale s")
+    plt.ylabel("∂J/∂s")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "gradient_vs_scale.png"), dpi=300)
+    plt.close()
+    
     # 保存
     img_name = os.path.basename(img_path)
     output_dir = os.path.join(output_path, f"{img_name}_true_s{scale_true}_t{theta_true_deg}_init_s{scale_init}_t{theta_init_deg}")
@@ -191,6 +285,22 @@ def main():
     # 描画結果の保存
     fig.savefig(os.path.join(output_dir, "scale_theta_history.png")) 
     # plt.show()
+    
+    # 微分結果のグラフを保存
+    plt.figure(figsize=(8, 5))
+    plt.plot(theta_range_grad, dJ_dtheta_range, 'purple', linewidth=2, label='∂J/∂θ')
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+    plt.axvline(x=theta_true_deg, color='r', linestyle='--', linewidth=2, label=f'True value {theta_true_deg}°')
+    plt.axvline(x=theta_est, color='g', linestyle=':', linewidth=2, label=f'Estimated {theta_est:.2f}°')
+    plt.title("First derivative of objective function w.r.t. rotation angle θ")
+    plt.xlabel("Rotation angle θ (degrees)")
+    plt.ylabel("∂J/∂θ")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "gradient_vs_theta.png"), dpi=300)
+    plt.close()
+    
     # 結果をCSV形式で保存
     result_summary = pd.DataFrame([{
         "真値 角度(deg)": theta_true_deg,
@@ -211,6 +321,15 @@ def main():
         "error_history": error_history
     })
     history_df.to_csv(os.path.join(output_dir, "history.csv"), index=False, encoding="utf-8-sig")
+    
+    # 微分結果をCSV形式で保存
+    gradient_df = pd.DataFrame({
+        "theta_range": theta_range_grad,
+        "dJ_dtheta": dJ_dtheta_range,
+        "scale_range": np.pad(scale_range_grad, (0, max(0, len(theta_range_grad) - len(scale_range_grad)))),
+        "dJ_dscale": np.pad(dJ_dscale_range, (0, max(0, len(theta_range_grad) - len(dJ_dscale_range))))
+    })
+    gradient_df.to_csv(os.path.join(output_dir, "gradient_data.csv"), index=False, encoding="utf-8-sig")
 
 
     # 目的関数を可視化

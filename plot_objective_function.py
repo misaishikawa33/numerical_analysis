@@ -97,7 +97,8 @@ def visualize_chages_in_est(surface_data_path, history_path):
     plt.show()
 
 def main():
-    # scale_true = 1
+    # scale_true = 1.2
+
     # theta_true_deg = 5 
     # img_path = "input/color/Lenna.bmp"
     # img_input = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
@@ -111,11 +112,11 @@ def main():
     #                                  theta_max=10,
     #                                  theta_step=1,
     #                                  scale_min=0.8,
-    #                                  scale_max=1.2,
+    #                                  scale_max=1.6,
     #                                  scale_step=0.05)
     
     surface_data_path = "output/J_surface_data.npz"
-    history_path = "output/Lenna.bmp_true_s1.0_t5.0_init_s1.0_t0.0/history.csv"
+    history_path = "output/milkdrop.bmp_true_s1.2_t5.0_init_s1.0_t0.0/history.csv"
     visualize_chages_in_est(surface_data_path, history_path)
                                      
 
